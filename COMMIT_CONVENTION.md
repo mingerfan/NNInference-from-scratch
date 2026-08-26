@@ -255,10 +255,12 @@ git config --get core.hooksPath
 `.github/workflows/ci.yml` 在每次 push 到 `main` 后执行：
 
 1. 检查本次 push 新增的所有 commit message。
-2. 输出 GitHub runner 上的 Rust 和 Cargo 版本。
-3. 执行 `cargo fmt --all -- --check`。
-4. 执行严格的 Clippy 检查。
-5. 执行所有测试。
+2. 在 Ubuntu 24.04、Windows Server 2025 和 macOS 15 上分别输出 Rust 与 Cargo 版本。
+3. 在三个平台上分别执行 `cargo fmt --all -- --check`。
+4. 在三个平台上分别执行严格的 Clippy 检查。
+5. 在三个平台上分别执行所有测试。
+
+macOS 15 runner 使用 Apple Silicon，因此该矩阵同时覆盖 x64 Linux、x64 Windows 和 ARM64 macOS。矩阵设置 `fail-fast: false`，单个平台失败时不会取消其他平台的任务。
 
 也可以在 GitHub Actions 页面通过 `workflow_dispatch` 手动运行。手动运行没有对应的新增提交范围，因此只执行 Rust 检查。
 

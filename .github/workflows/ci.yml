@@ -13,8 +13,9 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  checks:
-    name: Commit and Rust checks
+  commit-messages:
+    name: Commit messages
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
 
     steps:
@@ -25,7 +26,6 @@ jobs:
           persist-credentials: false
 
       - name: Validate commit messages
-        if: github.event_name == 'push'
         env:
           BEFORE_SHA: ${{ github.event.before }}
           AFTER_SHA: ${{ github.sha }}
@@ -43,6 +43,23 @@ jobs:
             subject=$(git show -s --format=%s "$commit")
             ./scripts/validate-commit-message.sh main "$subject" "commit $commit"
           done
+
+  rust:
+    name: Rust checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - windows-2025
+          - macos-15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Show Rust environment
         run: |
