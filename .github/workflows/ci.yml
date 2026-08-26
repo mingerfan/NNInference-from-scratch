@@ -1,0 +1,59 @@
+name: Rust CI
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  checks:
+    name: Commit and Rust checks
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate commit messages
+        if: github.event_name == 'push'
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: |
+          set -eu
+
+          zero_sha=0000000000000000000000000000000000000000
+          if [ "$BEFORE_SHA" = "$zero_sha" ] || ! git cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null; then
+            commits=$AFTER_SHA
+          else
+            commits=$(git rev-list --reverse "$BEFORE_SHA..$AFTER_SHA")
+          fi
+
+          for commit in $commits; do
+            subject=$(git show -s --format=%s "$commit")
+            ./scripts/validate-commit-message.sh main "$subject" "commit $commit"
+          done
+
+      - name: Show Rust environment
+        run: |
+          rustc --version
+          cargo --version
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy
+        run: cargo clippy --all-targets --all-features --locked -- -D warnings
+
+      - name: Run tests
+        run: cargo test --all-targets --all-features --locked

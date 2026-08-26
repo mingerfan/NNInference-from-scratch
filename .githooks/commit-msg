@@ -1,7 +1,6 @@
 #!/bin/sh
 
 set -eu
-export LC_ALL=C
 
 if [ "$#" -ne 1 ]; then
     printf '%s\n' "Usage: commit-msg <commit-message-file>" >&2
@@ -11,30 +10,15 @@ fi
 commit_message_file=$1
 subject=$(sed -n '1p' "$commit_message_file")
 current_branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || printf '%s' "detached HEAD")
-
-if [ "${#subject}" -gt 72 ]; then
-    printf '%s\n' \
-        "Commit message rejected: subject exceeds 72 characters." \
-        "Received (${#subject} characters): $subject" >&2
-    exit 1
-fi
-
-main_pattern='^(Chapter[0-9]+\.[0-9]+\.[0-9]+|(Docs|Fix|Refactor|Test|Bench|Perf|Build|CI|Chore|Revert)): [A-Z].+$'
-branch_pattern='^(Add|Fix|Test|Refactor|Docs|Bench|Perf|Build|CI|Chore|Spike|Wip)\([a-z0-9][a-z0-9-]*\): [A-Z].+$'
+repository_root=$(git rev-parse --show-toplevel)
 
 if [ "$current_branch" = "main" ]; then
-    pattern=$main_pattern
-    expected='Chapter1.1.1: Subject or Docs: Subject'
+    mode=main
 else
-    pattern=$branch_pattern
-    expected='Add(scope): Subject or Fix(scope): Subject'
+    mode=branch
 fi
 
-if ! printf '%s\n' "$subject" | grep -Eq "$pattern"; then
-    printf '%s\n' \
-        "Commit message rejected on branch '$current_branch'." \
-        "Received: $subject" \
-        "Expected: $expected" \
-        "See COMMIT_CONVENTION.md for all allowed prefixes." >&2
-    exit 1
-fi
+exec "$repository_root/scripts/validate-commit-message.sh" \
+    "$mode" \
+    "$subject" \
+    "branch '$current_branch'"

@@ -217,12 +217,16 @@ git commit -m "Docs: Update commit message examples"
 
 ## 5. 自动检查
 
-仓库通过 `.githooks/commit-msg` 在执行 `git commit` 时检查标题。检查内容包括：
+提交规则统一实现在 `scripts/validate-commit-message.sh` 中，本地 hook 和 CI 共用该脚本，避免两套正则产生差异。检查内容包括：
 
 - 标题不超过 72 个字符。
 - 在 `main` 上使用 `Chapter...` 或仓库级标签格式。
 - 在其他分支上使用 `Action(scope): Subject` 格式。
 - `Subject` 以英文大写字母开头。
+
+### 5.1 本地检查
+
+仓库通过 `.githooks/commit-msg` 在执行 `git commit` 时调用公共检查脚本。
 
 Git 不会随仓库自动启用自定义 hook。**每次重新 clone 仓库后，都必须在仓库根目录执行一次：**
 
@@ -246,6 +250,20 @@ git config --get core.hooksPath
 
 特殊情况下可以通过 `git commit --no-verify` 跳过检查，但不应将它作为日常提交方式。
 
+### 5.2 CI 检查
+
+`.github/workflows/ci.yml` 在每次 push 到 `main` 后执行：
+
+1. 检查本次 push 新增的所有 commit message。
+2. 输出 GitHub runner 上的 Rust 和 Cargo 版本。
+3. 执行 `cargo fmt --all -- --check`。
+4. 执行严格的 Clippy 检查。
+5. 执行所有测试。
+
+也可以在 GitHub Actions 页面通过 `workflow_dispatch` 手动运行。手动运行没有对应的新增提交范围，因此只执行 Rust 检查。
+
+CI 在 push 完成后才会启动，所以它只能报告已经进入远端 `main` 的错误提交，不能代替本地 hook。为了确保文档或配置提交也接受命名检查，CI 不设置文件路径过滤。
+
 ## 6. 完整示例
 
 开发 `Chapter 3.6 Single-Head Attention` 时：
@@ -266,4 +284,4 @@ Refactor(attention): Reuse batched matmul helpers
 Chapter3.6.1: Implement single-head causal attention
 ```
 
-这样，功能分支上的提交服务于开发过程，`main` 的历史只体现最终的课程里程碑。整个工作流不依赖任何 Git 托管平台。
+这样，功能分支上的提交服务于开发过程，`main` 的历史只体现最终的课程里程碑。本地分支和 squash 流程不依赖托管平台；GitHub CI 只作为额外的远端验证。
