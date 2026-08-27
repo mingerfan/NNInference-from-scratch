@@ -168,7 +168,7 @@ Rust `Vec<T>`：
 let a = Tensor::from_vec(
     vec![1., 2., 3., 4., 5., 6.],
     &[2, 3]
-);
+)?;
 
 let b = a.transpose(0, 1);
 
@@ -231,7 +231,7 @@ $$
 实现任意 N 维 indexing：
 
 ```rust
-tensor.get(&[1, 2, 3])
+tensor.get(&[1, 2, 3])?
 ```
 
 ---

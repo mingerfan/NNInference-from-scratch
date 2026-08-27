@@ -1,7 +1,8 @@
 [package]
-name = "NNInference-from-scratch"
+name = "nn-inference-from-scratch"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
 
 [dependencies]
+thiserror = "2.0.20"
