@@ -3,6 +3,7 @@ use super::{TensorError, TensorResult};
 pub struct Tensor {
     data: Vec<f32>,
     shape: Vec<usize>,
+    strides: Vec<usize>,
 }
 
 fn checked_numel(shape: &[usize]) -> TensorResult<usize> {
@@ -18,15 +19,35 @@ fn checked_numel(shape: &[usize]) -> TensorResult<usize> {
         })
 }
 
-// 在Chapter1.1中，我们暂时先使用Row-major进行布局
 impl Tensor {
     pub fn new_with_value(shape: &[usize], value: f32) -> TensorResult<Self> {
         // numel = number of elements
         let numel = checked_numel(shape)?;
+        let strides = Self::row_major_strides(shape)?;
         Ok(Tensor {
             data: vec![value; numel],
             shape: shape.to_vec(),
+            strides,
         })
+    }
+
+    fn row_major_strides(shape: &[usize]) -> TensorResult<Vec<usize>> {
+        if shape.contains(&0) {
+            return Ok(vec![0; shape.len()]);
+        }
+
+        let mut stride = 1usize;
+        let mut strides = Vec::with_capacity(shape.len());
+        for &dim in shape.iter().rev() {
+            strides.push(stride);
+            stride = stride
+                .checked_mul(dim)
+                .ok_or_else(|| TensorError::ShapeOverflow {
+                    shape: shape.to_vec(),
+                })?;
+        }
+        strides.reverse();
+        Ok(strides)
     }
 
     pub fn zeros(shape: &[usize]) -> TensorResult<Self> {
@@ -46,9 +67,11 @@ impl Tensor {
                 actual: data.len(),
             })
         } else {
+            let strides = Self::row_major_strides(shape)?;
             Ok(Tensor {
                 data,
                 shape: shape.to_vec(),
+                strides,
             })
         }
     }
@@ -63,6 +86,10 @@ impl Tensor {
 
     pub fn ndim(&self) -> usize {
         self.shape.len()
+    }
+
+    pub fn strides(&self) -> &[usize] {
+        &self.strides
     }
 
     fn offset(&self, indices: &[usize]) -> TensorResult<usize> {
@@ -85,10 +112,11 @@ impl Tensor {
             }
         }
 
-        let mut offset = 0;
-        for (&index, &size) in indices.iter().zip(self.shape.iter()) {
-            offset = offset * size + index;
-        }
+        let offset = indices
+            .iter()
+            .zip(self.strides.iter())
+            .map(|(a, b)| a * b)
+            .sum();
 
         debug_assert!(offset < self.data.len());
         Ok(offset)
@@ -109,6 +137,13 @@ impl Tensor {
 #[cfg(test)]
 mod tests {
     use super::{Tensor, TensorError};
+
+    #[test]
+    fn computes_contiguous_row_major_strides() {
+        assert_eq!(Tensor::zeros(&[2, 3, 4]).unwrap().strides(), &[12, 4, 1]);
+        assert_eq!(Tensor::zeros(&[4]).unwrap().strides(), &[1]);
+        assert_eq!(Tensor::zeros(&[]).unwrap().strides(), &[]);
+    }
 
     #[test]
     fn indexes_three_dimensional_tensor_in_row_major_order() {
@@ -143,10 +178,16 @@ mod tests {
         assert_eq!(Tensor::zeros(&[]).unwrap().numel(), 1);
         let empty = Tensor::zeros(&[usize::MAX, 2, 0]).unwrap();
         assert_eq!(empty.numel(), 0);
+        assert_eq!(empty.strides(), &[0, 0, 0]);
         assert!(matches!(
             empty.get(&[usize::MAX - 1, 1, 0]),
             Err(TensorError::IndexOutOfBounds { axis: 2, .. })
         ));
+
+        let empty_with_large_suffix = Tensor::zeros(&[0, usize::MAX, 2]).unwrap();
+        assert_eq!(empty_with_large_suffix.numel(), 0);
+        assert_eq!(empty_with_large_suffix.strides(), &[0, 0, 0]);
+
         assert!(matches!(
             Tensor::from_vec(Vec::new(), &[usize::MAX, 2]),
             Err(TensorError::ShapeOverflow { .. })
